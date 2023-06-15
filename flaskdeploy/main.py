@@ -13,13 +13,6 @@ model = load_model('model5cls.h5', custom_objects={'KerasLayer': hub.KerasLayer}
 with open('labels.txt', 'r') as f:
     label = f.read().splitlines()
 
-mydb = mysql.connector.connect(
-    host="34.101.41.87",  
-    user="root",  
-    password="elektronio",  
-    database="elektronio"
-)
-    
 app = Flask(__name__)
 
 def predict_label(img):
@@ -30,6 +23,16 @@ def predict_label(img):
     return predicted_label
 
 def get_component_data(name):
+    try:
+        mydb = mysql.connector.connect(
+            host="34.101.41.87",
+            user="root",
+            password="elektronio",
+            database="elektronio"
+        )
+    except mysql.connector.Error as err:
+        return jsonify({"result": "failure", "error": "Error connecting to database: " + str(err)})
+
     mycursor = mydb.cursor()
     query = "SELECT * FROM komponen WHERE name = %s"
     mycursor.execute(query, (name,))
@@ -38,7 +41,7 @@ def get_component_data(name):
 
     columns = [desc[0] for desc in mycursor.description]
     component_data = [dict(zip(columns, row)) for row in result]
-    
+
     return component_data
 
 @app.route('/predict', methods=["GET", "POST"])
@@ -60,15 +63,17 @@ def index():
 
     component_data = get_component_data(pred_img)
 
+    if "error" in component_data:
+        return component_data
+
     return jsonify({
-        "result": "success", 
+        "result": "success",
         "name": component_data[0]["name"],
         "id": component_data[0]["id"],
         "function": component_data[0]["function"],
         "description": component_data[0]["description"],
         "Url_Images": component_data[0]["Url_Images"]
-        })
+    })
 
 if __name__ == '__main__':
-# app.run(host='0.0.0.0/0', port=8080 ,debug=True)
     app.run(debug=True, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
